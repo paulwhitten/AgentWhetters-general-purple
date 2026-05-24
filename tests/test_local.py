@@ -12,7 +12,6 @@ Requires OPENAI_API_KEY (or Azure config) to be set in .env or environment.
 """
 
 import asyncio
-import json
 import sys
 
 import httpx
@@ -70,7 +69,7 @@ async def run_tests():
     result = await send_task("Run 'ls /' and return the output exactly as printed.")
     answer = extract_answer(result)
     print(f"    Answer (first 200 chars): {answer[:200]}")
-    assert "bin" in answer or "usr" in answer, f"Expected directory listing"
+    assert "bin" in answer or "usr" in answer, "Expected directory listing"
     print("    OK")
 
     # Test 4: Python computation

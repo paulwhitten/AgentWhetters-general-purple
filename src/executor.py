@@ -8,9 +8,9 @@ messages to the appropriate protocol adapter based on message format
 
 from __future__ import annotations
 
-import base64
 import logging
 import uuid
+import re
 from datetime import datetime, timezone
 
 from a2a.server.agent_execution import AgentExecutor
@@ -20,7 +20,6 @@ from a2a.types import (
     Artifact,
     DataPart,
     FilePart,
-    FileWithBytes,
     Message,
     Part,
     Role,
@@ -47,7 +46,6 @@ def _extract_text(message: Message) -> str:
     return "\n".join(parts)
 
 
-import re
 
 # Patterns indicating a self-contained prompt that should bypass our agentic wrapper.
 # These prompts already include full instructions and expect a direct LLM response.

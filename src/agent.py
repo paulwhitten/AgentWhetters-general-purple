@@ -15,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 
 from openai import AsyncAzureOpenAI, AsyncOpenAI
 
@@ -82,8 +83,6 @@ rather than continuing to search — a partial answer is better than no answer
 - Never loop on the same failing command — diagnose and adapt
 """
 
-
-import re
 
 # Patterns that indicate the answer is code/patch output (not a factual answer)
 _CODE_PATTERNS = re.compile(

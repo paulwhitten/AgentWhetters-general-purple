@@ -3,17 +3,15 @@
 import sys
 from pathlib import Path
 
-import pytest
-
 # Add src/ to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 
 def test_agent_imports():
     """Test that all agent modules import correctly."""
-    from agent import Agent, DEVELOPER_MESSAGE, make_openai_client
-    from tools import SHELL_TOOL, DONE_TOOL, RUN_COMMAND_TOOL, is_reasoning_model
-    from server import GeneralPurposeAgent, create_app
+    from agent import Agent, DEVELOPER_MESSAGE, make_openai_client  # noqa: F401
+    from tools import SHELL_TOOL, DONE_TOOL, RUN_COMMAND_TOOL, is_reasoning_model  # noqa: F401
+    from server import create_app  # noqa: F401
 
     assert Agent is not None
     assert len(DEVELOPER_MESSAGE) > 500
@@ -71,7 +69,7 @@ def test_agent_defaults():
         from agent import Agent
         agent = Agent()
         assert agent.model == "gpt-5.4"
-        assert agent.step_limit == 30
+        assert agent.step_limit == 50
         assert agent.tool_result_limit == 30_000
         assert agent.compact_threshold == 200_000
     finally:

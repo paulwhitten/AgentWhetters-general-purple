@@ -30,7 +30,6 @@ from openai import AsyncAzureOpenAI, AsyncOpenAI
 from tools import (
     DEFAULT_COMPACT_THRESHOLD,
     DEFAULT_STEP_LIMIT,
-    DEFAULT_TOOL_RESULT_LIMIT,
     DONE_TOOL,
     is_reasoning_model,
     truncate,
