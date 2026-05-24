@@ -1,6 +1,6 @@
 [project]
 name = "agentwhetters-general"
-version = "0.1.0"
+version = "1.0.1"
 description = "A general-purpose purple agent for AgentBeats Sprint 4"
 requires-python = ">=3.11"
 dependencies = [
