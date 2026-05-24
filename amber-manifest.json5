@@ -1,12 +1,56 @@
 {
-    // Amber manifest for AgentBeats registration
-    // See: https://github.com/RDI-Foundation/amber
-    "name": "agentwhetters-general",
-    "version": "1.0.1",
-    "description": "A general-purpose AI agent for AgentBeats Sprint 4",
-    "entrypoint": {
-        "type": "a2a",
-        "port": 9009
+  // Amber manifest for AgentBeats registration
+  // See: https://github.com/RDI-Foundation/amber
+  manifest_version: "0.3.0",
+
+  config_schema: {
+    type: "object",
+    properties: {
+      openai_api_key: { type: "string", secret: true },
+      azure_openai_endpoint: {
+        type: "string",
+        description: "Azure OpenAI endpoint URL (e.g. https://your-resource.openai.azure.com/)",
+      },
+      azure_openai_api_version: {
+        type: "string",
+        description: "Azure OpenAI API version",
+        default: "2025-04-01-preview",
+      },
+      model_name: {
+        type: "string",
+        description: "Primary LLM model for complex reasoning tasks",
+        default: "gpt-5.4",
+      },
     },
-    "image": "ghcr.io/paulwhitten/agentwhetters-general-purple:latest"
+    required: [],
+    additionalProperties: false,
+  },
+
+  slots: {
+    proxy: { kind: "a2a", optional: true },
+  },
+
+  program: {
+    entrypoint: "uv run python src/server.py --host 0.0.0.0 --port 9009",
+
+    env: {
+      PYTHONUNBUFFERED: "1",
+      AGENT_MODEL: "${config.model_name}",
+      OPENAI_API_KEY: { when: "config.openai_api_key", value: "${config.openai_api_key}" },
+      AZURE_OPENAI_ENDPOINT: { when: "config.azure_openai_endpoint", value: "${config.azure_openai_endpoint}" },
+      AZURE_OPENAI_API_VERSION: { when: "config.azure_openai_api_version", value: "${config.azure_openai_api_version}" },
+    },
+
+    network: {
+      endpoints: [
+        { name: "a2a_endpoint", port: 9009 },
+      ],
+    },
+  },
+
+  provides: {
+    a2a: { kind: "a2a", endpoint: "a2a_endpoint" },
+  },
+
+  exports: { a2a: "a2a" },
 }
