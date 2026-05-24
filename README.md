@@ -23,24 +23,19 @@ interaction protocols it encounters.
 
 ## Architecture
 
-```text
-┌─────────────────────────────────────────────────────────┐
-│                    A2A Server (port 9009)                │
-│                                                         │
-│  ┌───────────────────────────────────────────────────┐  │
-│  │              Message Router (executor.py)          │  │
-│  │  Inspects message format → dispatches to adapter  │  │
-│  └──────┬──────────┬──────────────┬─────────────┬────┘  │
-│         │          │              │             │        │
-│  ┌──────▼───┐ ┌────▼─────┐ ┌─────▼──────┐ ┌───▼────┐  │
-│  │  Shell   │ │ ToolChat │ │    Vuln    │ │Standard│  │
-│  │ Adapter  │ │ Adapter  │ │  Adapter   │ │  Path  │  │
-│  └──────────┘ └──────────┘ └────────────┘ └────────┘  │
-│                                                         │
-│  ┌───────────────────────────────────────────────────┐  │
-│  │           Core LLM Client (Azure OpenAI)          │  │
-│  └───────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    A2A["A2A Server (port 9009)"] --> Router["Message Router<br/>(executor.py)"]
+
+    Router -->|"shell-v1 JSON"| Shell["Shell Adapter"]
+    Router -->|"bootstrap/messages"| ToolChat["ToolChat Adapter"]
+    Router -->|"FileParts + exit_code"| Vuln["Vuln Adapter"]
+    Router -->|"plain text"| Standard["Standard Path"]
+
+    Shell --> LLM["Core LLM Client<br/>(Azure OpenAI gpt-5.4)"]
+    ToolChat --> LLM
+    Vuln --> LLM
+    Standard --> LLM
 ```
 
 ## Design Principles
