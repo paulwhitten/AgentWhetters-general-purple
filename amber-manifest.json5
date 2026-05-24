@@ -1,0 +1,11 @@
+{
+    // Amber manifest for AgentBeats registration
+    // See: https://github.com/RDI-Foundation/amber
+    "name": "agentwhetters-general",
+    "version": "0.1.0",
+    "description": "A general-purpose AI agent for AgentBeats Sprint 4",
+    "entrypoint": {
+        "type": "a2a",
+        "port": 9009
+    }
+}
