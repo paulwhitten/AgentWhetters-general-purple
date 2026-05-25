@@ -83,3 +83,90 @@ def test_create_app():
     from server import create_app
     app = create_app(host="localhost", port=9999)
     assert app is not None
+
+
+def test_tau2_protocol_detection():
+    """Test that tau2-bench messages are correctly detected."""
+    from tau2_adapter import is_tau2_protocol_message
+
+    # Simulated tau2 first message (contains both detection patterns)
+    tau2_msg = (
+        "Some policy text...\n"
+        "Here's a list of tools you can use (you can use at most one tool at a time):\n"
+        '[{"type": "function", "function": {"name": "find_user"}}]\n'
+        "Please response in the JSON format. "
+        "Please wrap the JSON part with <json>...</json> tags.\n"
+    )
+    assert is_tau2_protocol_message(tau2_msg) is True
+
+    # Normal message should not match
+    assert is_tau2_protocol_message("Hello, can you help me?") is False
+    assert is_tau2_protocol_message("run ls -la") is False
+
+    # Partial match (only one pattern) should not trigger
+    assert is_tau2_protocol_message(
+        "Please wrap the JSON part with <json>...</json> tags."
+    ) is False
+
+
+def test_tau2_response_fix():
+    """Test that the adapter fixes malformed responses."""
+    from tau2_adapter import Tau2Adapter
+
+    adapter = Tau2Adapter()
+
+    # Already correct
+    correct = '<json>{"name": "respond", "arguments": {"content": "Hi"}}</json>'
+    assert "<json>" in correct  # no fix needed
+
+    # Missing tags but valid JSON
+    raw_json = '{"name": "find_user", "arguments": {"id": "123"}}'
+    fixed = adapter._fix_response_format(raw_json)
+    assert "<json>" in fixed
+    assert "</json>" in fixed
+    assert '"find_user"' in fixed
+
+
+def test_tau2_validate_json_in_tags():
+    """Test that _validate_json_in_tags fixes malformed JSON inside tags."""
+    from tau2_adapter import Tau2Adapter
+
+    adapter = Tau2Adapter()
+
+    # Valid JSON in tags - should pass through unchanged
+    valid = '<json>{"name": "respond", "arguments": {"content": "Hi"}}</json>'
+    assert adapter._validate_json_in_tags(valid) == valid
+
+    # Extra closing brace (common LLM error)
+    extra_brace = '<json>{"name":"get_user_details","arguments":{"user_id":"raj_sanchez_7340"}}}</json>'
+    fixed = adapter._validate_json_in_tags(extra_brace)
+    assert "<json>" in fixed
+    assert "</json>" in fixed
+    # Should extract valid JSON via brace counting
+    import json
+    inner = fixed.replace("<json>", "").replace("</json>", "")
+    parsed = json.loads(inner)
+    assert parsed["name"] == "get_user_details"
+    assert parsed["arguments"]["user_id"] == "raj_sanchez_7340"
+
+
+def test_tau2_extract_valid_json():
+    """Test brace-counting JSON extraction."""
+    from tau2_adapter import Tau2Adapter
+
+    adapter = Tau2Adapter()
+
+    # Normal JSON
+    assert adapter._extract_valid_json('{"a": 1}') == '{"a": 1}'
+
+    # Extra braces after
+    assert adapter._extract_valid_json('{"a": {"b": 2}}}') == '{"a": {"b": 2}}'
+
+    # No JSON
+    assert adapter._extract_valid_json('no json here') is None
+
+    # Nested JSON
+    result = adapter._extract_valid_json('{"name": "tool", "arguments": {"x": 1}}')
+    assert result is not None
+    import json
+    assert json.loads(result)["name"] == "tool"

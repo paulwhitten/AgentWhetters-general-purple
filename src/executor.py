@@ -9,8 +9,8 @@ messages to the appropriate protocol adapter based on message format
 from __future__ import annotations
 
 import logging
-import uuid
 import re
+import uuid
 from datetime import datetime, timezone
 
 from a2a.server.agent_execution import AgentExecutor
@@ -32,6 +32,7 @@ from a2a.types import (
 
 from agent import Agent
 from shell_adapter import ShellProtocolAdapter, is_shell_protocol_message
+from tau2_adapter import Tau2Adapter, is_tau2_protocol_message
 from toolchat_adapter import ToolChatAdapter
 
 logger = logging.getLogger("agentwhetters.executor")
@@ -46,9 +47,7 @@ def _extract_text(message: Message) -> str:
     return "\n".join(parts)
 
 
-
 # Patterns indicating a self-contained prompt that should bypass our agentic wrapper.
-# These prompts already include full instructions and expect a direct LLM response.
 _PASSTHROUGH_PATTERNS = [
     re.compile(r"Output Format:", re.IGNORECASE),
     re.compile(r"Response Format:", re.IGNORECASE),
@@ -60,12 +59,7 @@ _MIN_PASSTHROUGH_LENGTH = 2000
 
 
 def _is_passthrough_prompt(text: str) -> bool:
-    """Detect self-contained prompts that don't need shell tools or developer message.
-
-    Heuristic: long prompts (>2000 chars) that contain explicit output format
-    instructions or code generation patterns. These are typically benchmark
-    prompts that should be forwarded directly to the LLM.
-    """
+    """Detect self-contained prompts that don't need shell tools or developer message."""
     if len(text) < _MIN_PASSTHROUGH_LENGTH:
         return False
     matches = sum(1 for p in _PASSTHROUGH_PATTERNS if p.search(text))
@@ -91,11 +85,7 @@ def _has_data_part_with_exit_code(message: Message) -> bool:
 
 
 def _get_toolchat_data(message: Message) -> dict | None:
-    """Extract tool-chat protocol data from a DataPart if present.
-
-    Returns the data dict if the message contains a DataPart with
-    'messages' or 'bootstrap' keys (tool-calling chat protocol).
-    """
+    """Extract tool-chat protocol data from a DataPart if present."""
     for part in message.parts:
         if isinstance(part.root, DataPart):
             data = part.root.data
@@ -105,7 +95,7 @@ def _get_toolchat_data(message: Message) -> dict | None:
 
 
 def _is_vuln_analysis_message(message: Message) -> bool:
-    """Detect vulnerability-analysis protocol messages (FileParts + exit_code DataParts)."""
+    """Detect vulnerability-analysis protocol messages."""
     return _has_file_parts(message) or _has_data_part_with_exit_code(message)
 
 
@@ -116,8 +106,11 @@ class PurpleAgentExecutor(AgentExecutor):
         super().__init__()
         self._shell_adapter = ShellProtocolAdapter()
         self._toolchat_adapter = ToolChatAdapter()
+        self._tau2_adapter = Tau2Adapter()
         # context_id -> handler for multi-turn vuln-analysis sessions
         self._vuln_sessions: dict[str, object] = {}
+        # context_ids known to be tau2 sessions
+        self._tau2_sessions: set[str] = set()
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         """Dispatch to appropriate handler based on message content."""
@@ -157,6 +150,8 @@ class PurpleAgentExecutor(AgentExecutor):
                 await self._handle_vuln_analysis(context, event_queue, message)
             elif toolchat_data is not None:
                 await self._handle_toolchat(context, event_queue, toolchat_data)
+            elif is_tau2_protocol_message(text) or context_id in self._tau2_sessions:
+                await self._handle_tau2(context, event_queue, text)
             elif is_shell_protocol_message(text) or context_id in self._shell_adapter._sessions:
                 await self._handle_shell(context, event_queue, text)
             else:
@@ -177,6 +172,34 @@ class PurpleAgentExecutor(AgentExecutor):
                     timestamp=datetime.now(timezone.utc).isoformat(),
                 ),
                 final=True,
+            )
+        )
+
+    async def _handle_tau2(
+        self, context: RequestContext, event_queue: EventQueue, text: str,
+    ) -> None:
+        """Handle tau2-bench protocol messages.
+
+        tau2 green agent expects a Message response (not a Task).
+        We enqueue a Message directly so the ResultAggregator returns it as-is.
+        """
+        context_id = context.context_id or "default"
+        self._tau2_sessions.add(context_id)
+        logger.info("tau2 handler: context_id=%s, text_len=%d", context_id, len(text))
+
+        result = await self._tau2_adapter.handle_turn(context_id, text)
+        logger.info("tau2 handler: response_len=%d", len(result))
+
+        # Enqueue a Message directly - the A2A SDK ResultAggregator will return
+        # this as a Message type (not wrapped in a Task), which is what the
+        # tau2 green agent expects.
+        await event_queue.enqueue_event(
+            Message(
+                message_id=str(uuid.uuid4()),
+                role=Role.agent,
+                parts=[Part(root=TextPart(text=result))],
+                task_id=context.task_id,
+                context_id=context.context_id,
             )
         )
 
@@ -258,7 +281,6 @@ class PurpleAgentExecutor(AgentExecutor):
         self, context: RequestContext, event_queue: EventQueue, message: Message,
     ) -> None:
         """Handle vulnerability-analysis protocol messages."""
-        # Lazy import to avoid circular deps
         from vuln_adapter import VulnAnalysisAdapter
 
         context_id = context.context_id or "default"
@@ -274,11 +296,7 @@ class PurpleAgentExecutor(AgentExecutor):
     async def _handle_toolchat(
         self, context: RequestContext, event_queue: EventQueue, data: dict,
     ) -> None:
-        """Handle tool-calling chat protocol requests.
-
-        Supports bootstrap (cache context once) and regular turns (forward to LLM).
-        Returns DataPart with either text content or tool_calls.
-        """
+        """Handle tool-calling chat protocol requests."""
         if data.get("bootstrap"):
             logger.info("Tool-chat adapter: bootstrap request")
             result_data = await self._toolchat_adapter.handle_bootstrap(data)
