@@ -256,7 +256,7 @@ class ShellProtocolAdapter:
                     state.turn_count + 1, len(state.items))
 
         # Check step budget
-        tb_step_limit = min(self.step_limit, 30)
+        tb_step_limit = min(self.step_limit, 50)
         remaining = tb_step_limit - state.turn_count
         if remaining <= 0:
             logger.warning("TB step budget exhausted")
