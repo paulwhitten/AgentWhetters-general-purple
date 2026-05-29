@@ -69,7 +69,7 @@ def _build_agent_card(host: str, port: int) -> AgentCard:
             "safety, and other task categories without benchmark-specific logic."
         ),
         url=f"http://{host}:{port}/",
-        version="1.0.4",
+        version="1.0.5",
         capabilities=AgentCapabilities(streaming=True),
         defaultInputModes=["text/plain", "application/octet-stream"],
         defaultOutputModes=["text/plain", "application/octet-stream"],
