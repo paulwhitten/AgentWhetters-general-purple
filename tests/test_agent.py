@@ -85,35 +85,35 @@ def test_create_app():
     assert app is not None
 
 
-def test_tau2_protocol_detection():
-    """Test that tau2-bench messages are correctly detected."""
-    from tau2_adapter import is_tau2_protocol_message
+def test_tagged_action_protocol_detection():
+    """Test that tagged-action protocol messages are correctly detected."""
+    from tagged_action_adapter import is_tagged_action_message
 
-    # Simulated tau2 first message (contains both detection patterns)
-    tau2_msg = (
+    # Simulated first message (contains both detection patterns)
+    tagged_msg = (
         "Some policy text...\n"
         "Here's a list of tools you can use (you can use at most one tool at a time):\n"
         '[{"type": "function", "function": {"name": "find_user"}}]\n'
         "Please response in the JSON format. "
         "Please wrap the JSON part with <json>...</json> tags.\n"
     )
-    assert is_tau2_protocol_message(tau2_msg) is True
+    assert is_tagged_action_message(tagged_msg) is True
 
     # Normal message should not match
-    assert is_tau2_protocol_message("Hello, can you help me?") is False
-    assert is_tau2_protocol_message("run ls -la") is False
+    assert is_tagged_action_message("Hello, can you help me?") is False
+    assert is_tagged_action_message("run ls -la") is False
 
     # Partial match (only one pattern) should not trigger
-    assert is_tau2_protocol_message(
+    assert is_tagged_action_message(
         "Please wrap the JSON part with <json>...</json> tags."
     ) is False
 
 
-def test_tau2_response_fix():
+def test_tagged_action_response_fix():
     """Test that the adapter fixes malformed responses."""
-    from tau2_adapter import Tau2Adapter
+    from tagged_action_adapter import TaggedActionAdapter
 
-    adapter = Tau2Adapter()
+    adapter = TaggedActionAdapter()
 
     # Already correct
     correct = '<json>{"name": "respond", "arguments": {"content": "Hi"}}</json>'
@@ -127,11 +127,11 @@ def test_tau2_response_fix():
     assert '"find_user"' in fixed
 
 
-def test_tau2_validate_json_in_tags():
+def test_tagged_action_validate_json_in_tags():
     """Test that _validate_json_in_tags fixes malformed JSON inside tags."""
-    from tau2_adapter import Tau2Adapter
+    from tagged_action_adapter import TaggedActionAdapter
 
-    adapter = Tau2Adapter()
+    adapter = TaggedActionAdapter()
 
     # Valid JSON in tags - should pass through unchanged
     valid = '<json>{"name": "respond", "arguments": {"content": "Hi"}}</json>'
@@ -150,11 +150,11 @@ def test_tau2_validate_json_in_tags():
     assert parsed["arguments"]["user_id"] == "raj_sanchez_7340"
 
 
-def test_tau2_extract_valid_json():
+def test_tagged_action_extract_valid_json():
     """Test brace-counting JSON extraction."""
-    from tau2_adapter import Tau2Adapter
+    from tagged_action_adapter import TaggedActionAdapter
 
-    adapter = Tau2Adapter()
+    adapter = TaggedActionAdapter()
 
     # Normal JSON
     assert adapter._extract_valid_json('{"a": 1}') == '{"a": 1}'

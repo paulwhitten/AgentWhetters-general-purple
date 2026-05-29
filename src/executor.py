@@ -32,7 +32,7 @@ from a2a.types import (
 
 from agent import Agent
 from shell_adapter import ShellProtocolAdapter, is_shell_protocol_message
-from tau2_adapter import Tau2Adapter, is_tau2_protocol_message
+from tagged_action_adapter import TaggedActionAdapter, is_tagged_action_message
 from toolchat_adapter import ToolChatAdapter
 
 logger = logging.getLogger("agentwhetters.executor")
@@ -106,11 +106,11 @@ class PurpleAgentExecutor(AgentExecutor):
         super().__init__()
         self._shell_adapter = ShellProtocolAdapter()
         self._toolchat_adapter = ToolChatAdapter()
-        self._tau2_adapter = Tau2Adapter()
+        self._tagged_action_adapter = TaggedActionAdapter()
         # context_id -> handler for multi-turn vuln-analysis sessions
         self._vuln_sessions: dict[str, object] = {}
-        # context_ids known to be tau2 sessions
-        self._tau2_sessions: set[str] = set()
+        # context_ids known to be tagged-action sessions
+        self._tagged_action_sessions: set[str] = set()
 
     async def execute(self, context: RequestContext, event_queue: EventQueue) -> None:
         """Dispatch to appropriate handler based on message content."""
@@ -150,8 +150,8 @@ class PurpleAgentExecutor(AgentExecutor):
                 await self._handle_vuln_analysis(context, event_queue, message)
             elif toolchat_data is not None:
                 await self._handle_toolchat(context, event_queue, toolchat_data)
-            elif is_tau2_protocol_message(text) or context_id in self._tau2_sessions:
-                await self._handle_tau2(context, event_queue, text)
+            elif is_tagged_action_message(text) or context_id in self._tagged_action_sessions:
+                await self._handle_tagged_action(context, event_queue, text)
             elif is_shell_protocol_message(text) or context_id in self._shell_adapter._sessions:
                 await self._handle_shell(context, event_queue, text)
             else:
@@ -175,24 +175,24 @@ class PurpleAgentExecutor(AgentExecutor):
             )
         )
 
-    async def _handle_tau2(
+    async def _handle_tagged_action(
         self, context: RequestContext, event_queue: EventQueue, text: str,
     ) -> None:
-        """Handle tau2-bench protocol messages.
+        """Handle tagged-action protocol messages.
 
-        tau2 green agent expects a Message response (not a Task).
+        The orchestrator expects a Message response (not a Task).
         We enqueue a Message directly so the ResultAggregator returns it as-is.
         """
         context_id = context.context_id or "default"
-        self._tau2_sessions.add(context_id)
-        logger.info("tau2 handler: context_id=%s, text_len=%d", context_id, len(text))
+        self._tagged_action_sessions.add(context_id)
+        logger.info("tagged_action handler: context_id=%s, text_len=%d", context_id, len(text))
 
-        result = await self._tau2_adapter.handle_turn(context_id, text)
-        logger.info("tau2 handler: response_len=%d", len(result))
+        result = await self._tagged_action_adapter.handle_turn(context_id, text)
+        logger.info("tagged_action handler: response_len=%d", len(result))
 
         # Enqueue a Message directly - the A2A SDK ResultAggregator will return
         # this as a Message type (not wrapped in a Task), which is what the
-        # tau2 green agent expects.
+        # tagged-action orchestrator expects.
         await event_queue.enqueue_event(
             Message(
                 message_id=str(uuid.uuid4()),

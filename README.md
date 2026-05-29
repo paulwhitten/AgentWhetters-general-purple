@@ -15,11 +15,15 @@ through the same codebase and model configuration.
 
 ## Overview
 
-A general-purpose agent built on [Google ADK](https://adk.dev/) that handles
-diverse task categories through a single unified architecture. Rather than
-hardcoding benchmark-specific logic, the agent uses protocol adapters to
-translate between the core reasoning engine and the various green-agent
-interaction protocols it encounters.
+A general-purpose agent that communicates via the
+[A2A protocol](https://github.com/google/A2A) (from the
+[Google ADK](https://adk.dev/) ecosystem) and handles diverse task categories
+through a single unified architecture. The core reasoning engine uses Azure
+OpenAI directly rather than ADK's agent orchestration layer, since our
+compute budget targets Azure-hosted models exclusively. Rather than hardcoding
+benchmark-specific logic, the agent uses protocol adapters to translate between
+the reasoning engine and the various green-agent interaction protocols it
+encounters.
 
 ## Architecture
 
@@ -29,11 +33,13 @@ graph TD
 
     Router -->|"shell-v1 JSON"| Shell["Shell Adapter"]
     Router -->|"bootstrap/messages"| ToolChat["ToolChat Adapter"]
+    Router -->|"&lt;json&gt; tagged actions"| Tagged["Tagged Action Adapter"]
     Router -->|"FileParts + exit_code"| Vuln["Vuln Adapter"]
     Router -->|"plain text"| Standard["Standard Path"]
 
     Shell --> LLM["Core LLM Client<br/>(Azure OpenAI gpt-5.4)"]
     ToolChat --> LLM
+    Tagged --> LLM
     Vuln --> LLM
     Standard --> LLM
 ```
@@ -63,6 +69,7 @@ graph TD
 |---------|-----------------|-------------------|
 | Shell | `terminal-bench-shell-v1` JSON envelope with command execution results | Terminal tasks, system administration |
 | ToolChat | Bootstrap + turn messages with tool schemas and function calls | Compliance decisions, customer service, financial analysis |
+| Tagged Action | Tools described in text, responses as `<json>` tagged actions | Customer service, multi-turn tool calling via text protocol |
 | Vuln | Code snippets + execution feedback for vulnerability identification | Security analysis, exploit verification |
 | Standard | Plain text or unstructured messages | General Q&A, open-ended reasoning |
 
@@ -72,6 +79,7 @@ graph TD
 2. The router inspects the message content for protocol markers:
    - JSON with `protocol: "terminal-bench-shell-v1"` routes to Shell.
    - JSON with `messages` or `bootstrap` keys routes to ToolChat.
+   - Text with tool lists and `<json>` tag instructions routes to Tagged Action.
    - Messages matching vulnerability-analysis patterns route to Vuln.
    - Everything else takes the standard path.
 3. The selected adapter formats the message for the LLM, manages any

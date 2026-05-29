@@ -1,15 +1,17 @@
-"""tau2-bench protocol adapter — multi-turn tool-calling via <json> tags.
+"""Tagged-action protocol adapter — multi-turn tool-calling via <json> tags.
 
-tau2-bench's green agent sends plain text messages via A2A TextParts.
-The first message contains:
-- Policy text
+Handles protocols where the orchestrator (green agent) sends plain text
+messages via A2A TextParts describing available tools and expects responses
+as tagged JSON actions. The first message typically contains:
+- Policy/context text
 - Tool list as JSON
 - Instructions to respond with <json>{"name": "...", "arguments": {...}}</json>
 
 Subsequent messages are tool call results or user observations as plain text.
 The special action name "respond" sends a direct text reply to the user.
 
-Reference: agentify_tau_bench/green_agent/agent.py in tau2-bench repo.
+This adapter handles any protocol using the text-mediated tagged-action
+pattern (e.g. tau2-bench), not a specific benchmark.
 """
 
 from __future__ import annotations
@@ -23,27 +25,31 @@ from openai import AsyncAzureOpenAI, AsyncOpenAI
 
 from usage import tracker
 
-logger = logging.getLogger("agentwhetters.tau2_adapter")
+logger = logging.getLogger("agentwhetters.tagged_action_adapter")
 
-# Detection pattern: the green agent always includes this instruction
-_TAU2_DETECTION_PATTERN = re.compile(
+# Detection pattern: the orchestrator includes this instruction
+_TAGGED_ACTION_DETECTION_PATTERN = re.compile(
     r"Please wrap the JSON part with <json>", re.IGNORECASE
 )
 
 # Also check for tool list format
-_TAU2_TOOL_LIST_PATTERN = re.compile(
+_TAGGED_ACTION_TOOL_LIST_PATTERN = re.compile(
     r"Here's a list of tools you can use", re.IGNORECASE
 )
 
 RESPOND_ACTION_NAME = "respond"
 
 
-def is_tau2_protocol_message(text: str) -> bool:
-    """Detect if a message is a tau2-bench first turn (contains tool instructions)."""
+def is_tagged_action_message(text: str) -> bool:
+    """Detect if a message uses the tagged-action protocol (tools in text, <json> responses)."""
     return bool(
-        _TAU2_DETECTION_PATTERN.search(text)
-        and _TAU2_TOOL_LIST_PATTERN.search(text)
+        _TAGGED_ACTION_DETECTION_PATTERN.search(text)
+        and _TAGGED_ACTION_TOOL_LIST_PATTERN.search(text)
     )
+
+
+# Backward-compatible alias
+is_tau2_protocol_message = is_tagged_action_message
 
 
 def _make_client() -> AsyncOpenAI:
@@ -84,8 +90,8 @@ booking), ask ONCE with all relevant details, then proceed on confirmation.
 """
 
 
-class Tau2Adapter:
-    """Handles tau2-bench multi-turn tool-calling protocol."""
+class TaggedActionAdapter:
+    """Handles multi-turn tagged-action tool-calling protocol."""
 
     def __init__(self):
         self._client = _make_client()
@@ -94,7 +100,7 @@ class Tau2Adapter:
         self._sessions: dict[str, list[dict[str, str]]] = {}
 
     async def handle_turn(self, context_id: str, text: str) -> str:
-        """Process a tau2-bench turn and return the response text.
+        """Process a tagged-action turn and return the response text.
 
         Args:
             context_id: Session key for multi-turn state.
@@ -123,14 +129,14 @@ class Tau2Adapter:
                 messages=messages,
             )
         except Exception as exc:
-            logger.exception("tau2 adapter LLM call failed: %s", exc)
+            logger.exception("tagged_action adapter LLM call failed: %s", exc)
             # Return a safe respond action on error
             fallback = json.dumps(
                 {"name": RESPOND_ACTION_NAME, "arguments": {"content": f"Error: {exc}"}}
             )
             return f"<json>{fallback}</json>"
 
-        tracker.record(response, label="tau2_adapter")
+        tracker.record(response, label="tagged_action")
 
         content = response.choices[0].message.content or ""
 
