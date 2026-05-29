@@ -1,6 +1,4 @@
 {
-  // Amber manifest for AgentBeats registration
-  // See: https://github.com/RDI-Foundation/amber
   manifest_version: "0.1.0",
 
   config_schema: {
@@ -8,10 +6,8 @@
     properties: {
       openai_api_key: { type: "string", secret: true },
       azure_openai_endpoint: { type: "string" },
-      azure_openai_api_version: { type: "string" },
-      model_name: { type: "string" },
     },
-    required: ["openai_api_key"],
+    required: ["openai_api_key", "azure_openai_endpoint"],
     additionalProperties: false,
   },
 
@@ -21,10 +17,10 @@
 
     env: {
       PYTHONUNBUFFERED: "1",
-      AGENT_MODEL: "${config.model_name}",
+      AGENT_MODEL: "gpt-5.4",
       OPENAI_API_KEY: "${config.openai_api_key}",
       AZURE_OPENAI_ENDPOINT: "${config.azure_openai_endpoint}",
-      AZURE_OPENAI_API_VERSION: "${config.azure_openai_api_version}",
+      AZURE_OPENAI_API_VERSION: "2025-04-01-preview",
     },
 
     network: {
