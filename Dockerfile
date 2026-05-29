@@ -18,16 +18,14 @@ WORKDIR /app
 # Copy dependency file first for caching
 COPY pyproject.toml ./
 
-# Install dependencies
-RUN uv pip install --system -e .
+# Create venv and install dependencies (so uv run finds it at startup)
+RUN uv venv /app/.venv && uv pip install --python /app/.venv/bin/python -e .
 
 # Copy source code
 COPY src/ ./src/
 COPY amber-manifest.json5 ./
 
-WORKDIR /app/src
-
 # Expose the A2A server port
 EXPOSE 9009
 
-CMD ["python", "server.py"]
+CMD ["uv", "run", "--no-sync", "python", "src/server.py", "--host", "0.0.0.0", "--port", "9009"]
