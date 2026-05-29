@@ -156,7 +156,7 @@ class MessageIdMiddleware:
             data = json.loads(body)
             if (
                 isinstance(data, dict)
-                and data.get("method") == "message/send"
+                and data.get("method") in ("message/send", "message/stream")
                 and "params" in data
             ):
                 msg = data["params"].get("message", {})
@@ -182,7 +182,10 @@ class MessageIdMiddleware:
             if not body_sent:
                 body_sent = True
                 return {"type": "http.request", "body": body, "more_body": False}
-            return {"type": "http.request", "body": b"", "more_body": False}
+            # After body is consumed, delegate to original receive() so that
+            # SSE disconnect detection (sse_starlette) can block until the
+            # client actually disconnects instead of busy-looping.
+            return await receive()
 
         await self.app(scope, replay_receive, send)
 

@@ -61,14 +61,12 @@ Resolve the user's task end to end and return the final answer via the `done` to
 - Match output format exactly: pay attention to delimiters, units, structure, field names
 - Do not fabricate data or URLs — verify through shell commands
 - For multi-turn tasks, follow the protocol described in the task instructions
+- If the prompt includes worked examples, replicate their style and structure closely — \
+do not add extra logic, defensive checks, or complexity beyond what the examples show
 
 # Answer format
-When the task is a factual question or asks for a specific value/answer, wrap your \
-final answer in <FINAL_ANSWER> tags inside the `done` tool output:
-  <FINAL_ANSWER>your answer here</FINAL_ANSWER>
-This applies to research questions, numerical lookups, data analysis, and any task \
-requesting a specific answer. For coding tasks (patches, diffs, code fixes), return \
-the code output directly without FINAL_ANSWER tags unless instructed otherwise.
+Match the exact output format the task specifies — tags, prefixes, delimiters, \
+structure, or plain text. If no format is specified, return a plain concise answer.
 
 # Output
 Return your final answer by calling the `done` tool. The answer field should contain \
@@ -172,6 +170,9 @@ class Agent:
                     "Follow all instructions in the user prompt precisely. "
                     "Use only the allowed output types/formats specified. "
                     "Generate minimal, correct code without over-engineering. "
+                    "If the prompt includes worked examples, replicate their style "
+                    "and structure closely — do not add extra logic, defensive checks, "
+                    "or complexity beyond what the examples show. "
                     "When working with graphs: use copy.deepcopy() for graph copies; "
                     "maintain hierarchy constraints (e.g. if a container node type "
                     "must contain children per the schema, add default children); "
@@ -314,7 +315,7 @@ class Agent:
                     elif hasattr(item, "text"):
                         text_parts.append(item.text)
                 if text_parts:
-                    return _ensure_final_answer_tags("\n".join(text_parts))
+                    return "\n".join(text_parts)
                 break
 
             # Process shell_call items (reasoning models)
@@ -384,28 +385,28 @@ class Agent:
 
             if done_answer is not None:
                 tracker.log_summary()
-                return _ensure_final_answer_tags(done_answer)
+                return done_answer
 
         # Exhausted step budget — return whatever we have
         if done_answer is not None:
             tracker.log_summary()
-            return _ensure_final_answer_tags(done_answer)
+            return done_answer
 
         for item in reversed(items):
             if hasattr(item, "type") and item.type == "message":
                 for content in getattr(item, "content", []):
                     if hasattr(content, "text"):
-                        return _ensure_final_answer_tags(content.text)
+                        return content.text
             elif isinstance(item, dict) and item.get("type") == "function_call_output":
                 continue
             elif hasattr(item, "text"):
-                return _ensure_final_answer_tags(item.text)
+                return item.text
 
         # Best-effort: extract answer from recent tool outputs
         best_effort = self._extract_best_effort(items)
         if best_effort:
             logger.info("Best-effort extraction: %s", best_effort[:100])
-            return _ensure_final_answer_tags(best_effort)
+            return best_effort
 
         tracker.log_summary()
         return "<FINAL_ANSWER>Unable to determine answer within step budget</FINAL_ANSWER>"
